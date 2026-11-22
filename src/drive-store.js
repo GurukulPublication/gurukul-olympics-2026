@@ -95,7 +95,8 @@ export class DriveStore {
     const config = this.data.config || {};
     const intervalSeconds = Math.max(
       1,
-      Number(config.intervalSeconds) || Number(config.intervalMinutes || 15) * 60
+      Number(config.intervalSeconds) ||
+        (config.intervalMinutes ? Number(config.intervalMinutes) * 60 : 5)
     );
 
     return {

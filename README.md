@@ -57,7 +57,8 @@ All settings are environment variables:
 | `GOOGLE_CLIENT_ID` | — | Google OAuth Web application client ID |
 | `GOOGLE_CLIENT_SECRET` | — | Google OAuth client secret |
 | `GOOGLE_REDIRECT_URI` | derived from request | Fixed OAuth callback URL |
-| `GOOGLE_DRIVE_POLL_MINUTES` | `15` | Default Drive watch interval |
+| `GOOGLE_DRIVE_POLL_SECONDS` | `5` | Default Drive watch interval |
+| `GOOGLE_DRIVE_POLL_MINUTES` | `15` | Legacy interval fallback |
 
 ## Sign-in and participant mode
 
@@ -81,6 +82,8 @@ Set `AUTH_ENABLED=0` only for trusted local development/test environments to dis
 ## Google Drive folder watching
 
 Gurukul Olympics 2026 can watch a Drive folder and import new images automatically.
+
+By default it targets the folder **`GO#2026`** in the authorised Google account, assigns photos to the album **`GO#2026`**, includes subfolders, imports existing photos on first sync, and checks every **5 seconds**. After the first Google sign-in, the folder is selected automatically; a one-time interactive sign-in is still required because Google tokens cannot be created from code alone.
 
 ### 1. Google Cloud setup
 

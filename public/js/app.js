@@ -20,6 +20,8 @@ import {
 } from './ui.js';
 
 const PAGE_SIZE = 120;
+const DEFAULT_DRIVE_FOLDER = 'GO#2026';
+const DEFAULT_DRIVE_INTERVAL_SECONDS = 5;
 const UNSORTED = '__unsorted__';
 const VIEWS = new Set(['all', 'favorites', 'trash']);
 const SORTS = new Set(['newest', 'oldest', 'uploaded', 'name', 'largest']);
@@ -169,6 +171,7 @@ const state = {
   drivePopup: null,
   driveAuthTimer: null,
   driveAuthTimeout: null,
+  driveAutoConfiguring: false,
   role: 'admin',
   appStarted: false
 };
@@ -1804,7 +1807,7 @@ function toggleTheme() {
    ------------------------------------------------------------------ */
 
 function formatDriveInterval(seconds) {
-  const value = Number(seconds) || 900;
+  const value = Number(seconds) || DEFAULT_DRIVE_INTERVAL_SECONDS;
   if (value < 60) return `${value} sec`;
   if (value < 3600) return `${Math.round(value / 60)} min`;
   return `${Math.round(value / 3600)} hr`;
@@ -1897,6 +1900,7 @@ function startDriveAuthWatch() {
         state.drivePopup = null;
         renderDriveStatus(status);
         toast('Google Drive connected', { type: 'success' });
+        autoConfigureDefaultDrive();
       } else if (state.drivePopup?.closed) {
         stopDriveAuthWatch();
       }
@@ -1942,6 +1946,51 @@ function connectDrive() {
     });
 }
 
+async function autoConfigureDefaultDrive() {
+  if (state.role !== 'admin' || state.driveAutoConfiguring) return;
+  if (!state.drive?.connected || state.drive.folder) return;
+
+  state.driveAutoConfiguring = true;
+  try {
+    const data = await api(`/api/drive/folders?q=${encodeURIComponent(DEFAULT_DRIVE_FOLDER)}`);
+    const folders = Array.isArray(data.folders) ? data.folders : [];
+    const folder =
+      folders.find((item) => item.name.toLowerCase() === DEFAULT_DRIVE_FOLDER.toLowerCase()) || folders[0];
+
+    if (!folder) {
+      toast(`Drive folder “${DEFAULT_DRIVE_FOLDER}” was not found — choose a folder manually.`, {
+        type: 'info',
+        duration: 7000
+      });
+      openDriveDialog();
+      return;
+    }
+
+    const result = await api('/api/drive/config', {
+      method: 'POST',
+      body: {
+        folderId: folder.id,
+        folderName: folder.name,
+        album: DEFAULT_DRIVE_FOLDER,
+        intervalSeconds: DEFAULT_DRIVE_INTERVAL_SECONDS,
+        includeSubfolders: true,
+        importExisting: true,
+        enabled: true
+      }
+    });
+
+    renderDriveStatus(result.status);
+    toast(`Watching “${folder.name}” every ${DEFAULT_DRIVE_INTERVAL_SECONDS} sec`, { type: 'success' });
+    loadStats();
+    loadAlbums();
+  } catch (error) {
+    toast(error.message || 'Could not configure the default Drive folder.', { type: 'error' });
+    openDriveDialog();
+  } finally {
+    state.driveAutoConfiguring = false;
+  }
+}
+
 function handleDriveMessage(event) {
   if (event.origin !== location.origin) return;
   if (event.data?.type !== 'mosaic-drive-oauth') return;
@@ -1951,8 +2000,7 @@ function handleDriveMessage(event) {
 
   if (event.data.connected) {
     toast('Google Drive connected', { type: 'success' });
-    loadDriveStatus();
-    openDriveDialog();
+    loadDriveStatus().then(() => autoConfigureDefaultDrive());
   } else if (event.data.error) {
     toast(event.data.error, { type: 'error', duration: 7000 });
   }
@@ -2007,7 +2055,7 @@ async function openDriveDialog() {
   els.driveSubfolders.checked = config.includeSubfolders !== false;
   els.driveExisting.checked = config.importExisting !== false;
 
-  const seconds = String(config.intervalSeconds || Number(config.intervalMinutes || 15) * 60);
+  const seconds = String(config.intervalSeconds || DEFAULT_DRIVE_INTERVAL_SECONDS);
   if (![...els.driveInterval.options].some((option) => option.value === seconds)) {
     const custom = document.createElement('option');
     custom.value = seconds;
@@ -2038,7 +2086,7 @@ async function submitDriveConfig(event) {
         folderId,
         folderName,
         album: els.driveAlbum.value.trim().slice(0, 120),
-        intervalSeconds: Number(els.driveInterval.value) || 900,
+        intervalSeconds: Number(els.driveInterval.value) || DEFAULT_DRIVE_INTERVAL_SECONDS,
         includeSubfolders: els.driveSubfolders.checked,
         importExisting: els.driveExisting.checked,
         enabled: true
@@ -2171,7 +2219,9 @@ function startApp() {
 
   loadStats();
   loadAlbums();
-  if (state.role === 'admin') loadDriveStatus();
+  if (state.role === 'admin') {
+    loadDriveStatus().then(() => autoConfigureDefaultDrive());
+  }
   loadFirstPage({ scrollTop: false });
 
   setInterval(() => {

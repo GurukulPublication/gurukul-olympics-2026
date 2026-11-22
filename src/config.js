@@ -79,7 +79,8 @@ export function loadConfig(overrides = {}) {
       clientId: String(overrides.driveClientId ?? process.env.GOOGLE_CLIENT_ID ?? '').trim(),
       clientSecret: String(overrides.driveClientSecret ?? process.env.GOOGLE_CLIENT_SECRET ?? '').trim(),
       redirectUri: String(overrides.driveRedirectUri ?? process.env.GOOGLE_REDIRECT_URI ?? '').trim(),
-      pollMinutes: integer(overrides.drivePollMinutes ?? process.env.GOOGLE_DRIVE_POLL_MINUTES, 15, 1, 1440)
+      pollMinutes: integer(overrides.drivePollMinutes ?? process.env.GOOGLE_DRIVE_POLL_MINUTES, 15, 1, 1440),
+      pollSeconds: integer(overrides.drivePollSeconds ?? process.env.GOOGLE_DRIVE_POLL_SECONDS, 5, 1, 86400)
     },
     auth: {
       enabled: overrides.authEnabled ?? process.env.AUTH_ENABLED !== '0',

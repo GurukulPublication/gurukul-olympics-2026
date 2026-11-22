@@ -285,12 +285,12 @@ export class DriveClient {
 }
 
 export class DriveWatcher {
-  constructor({ store, client, config, processor, pollMinutes = 15, logger = console }) {
+  constructor({ store, client, config, processor, pollSeconds = 5, logger = console }) {
     this.store = store;
     this.client = client;
     this.config = config;
     this.processor = processor;
-    this.pollMinutes = pollMinutes;
+    this.pollSeconds = pollSeconds;
     this.logger = logger;
     this.timer = null;
     this.current = null;
@@ -328,7 +328,7 @@ export class DriveWatcher {
     const config = this.store.data.config || {};
     const seconds = Math.max(
       1,
-      Number(config.intervalSeconds) || (Number(config.intervalMinutes) || this.pollMinutes) * 60
+      Number(config.intervalSeconds) || this.pollSeconds
     );
     const interval = seconds * 1000;
 
@@ -546,7 +546,7 @@ export function registerDriveRoutes(app, { config, processor }) {
     client,
     config,
     processor,
-    pollMinutes: config.drive.pollMinutes
+    pollSeconds: config.drive.pollSeconds
   });
 
   app.locals.driveWatcher = watcher;
@@ -631,12 +631,17 @@ export function registerDriveRoutes(app, { config, processor }) {
     const folderId = String(body.folderId || '').trim().slice(0, 200);
     if (!folderId) return res.status(400).json({ error: 'Choose a Google Drive folder.' });
 
-    const intervalMinutes = Math.min(1440, Math.max(1, Number.parseInt(body.intervalMinutes, 10) || config.drive.pollMinutes));
     const requestedSeconds = Number.parseInt(body.intervalSeconds, 10);
     const intervalSeconds = Math.min(
       86400,
-      Math.max(5, Number.isFinite(requestedSeconds) && requestedSeconds > 0 ? requestedSeconds : intervalMinutes * 60)
+      Math.max(
+        5,
+        Number.isFinite(requestedSeconds) && requestedSeconds > 0
+          ? requestedSeconds
+          : config.drive.pollSeconds
+      )
     );
+    const intervalMinutes = Math.max(1, Math.round(intervalSeconds / 60));
 
     try {
       const status = await watcher.configure({
